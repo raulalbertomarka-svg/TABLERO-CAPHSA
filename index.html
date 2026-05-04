@@ -871,12 +871,12 @@ function renderAll(){
     :'<tr><td colspan="7" class="empty-st">Sin registros de averiados</td></tr>';
 }
 
-async function loadAll(manual){
+// 1. La URL debe estar fuera para que no cause errores de anidación
 function csvUrl(id, sheet) {
   return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&sheet=${encodeURIComponent(sheet)}`;
 }
 
-// 2. Función de carga corregida
+// 2. La función loadAll debe declararse una sola vez
 async function loadAll(manual) {
   if (manual) { showLoader('Actualizando datos'); }
   setStatus('loading', 'Conectando con Google Sheets...');
@@ -891,13 +891,11 @@ async function loadAll(manual) {
   let ok = true;
 
   try {
-    // CARGA HOJA 1
     const res1 = await fetch(csvUrl(SH_VENCER, 'Hoja 1'));
     if (!res1.ok) throw new Error('Error en Hoja 1');
     const text1 = await res1.text();
     RAW_VENCER = parseCSV(text1).slice(1);
 
-    // CARGA HOJA 2
     try {
       const res2 = await fetch(csvUrl(SH_VENCER, 'Hoja 2'));
       if (res2.ok) {
@@ -906,7 +904,6 @@ async function loadAll(manual) {
       }
     } catch (e) { console.warn("Error Hoja 2:", e); }
 
-    // CARGA HOJA 3
     try {
       const res3 = await fetch(csvUrl(SH_VENCER, 'Hoja 3'));
       if (res3.ok) {
@@ -915,7 +912,6 @@ async function loadAll(manual) {
       }
     } catch (e) { console.warn("Error Hoja 3:", e); }
 
-    // CARGA RESPUESTAS
     try {
       const resM = await fetch(csvUrl(SH_VENCER, 'RESPUESTAS'));
       if (resM.ok) {
@@ -924,10 +920,8 @@ async function loadAll(manual) {
       }
     } catch (e) { RAW_MERMA = []; }
 
-    // RENDERIZAR
     renderAll();
     renderMaestros();
-    
     setStatus('ok', 'Conectado — Datos actualizados');
     updateTime();
 
@@ -935,13 +929,10 @@ async function loadAll(manual) {
     ok = false;
     console.error("Error de conexión:", e);
     setStatus('err', 'Error: Verifica que el Sheet sea PÚBLICO');
-    
-    const msgErr = '<tr><td colspan="8" class="err-st">Error de conexión. Asegúrate de que el Sheet esté compartido como "Cualquier persona con el enlace".</td></tr>';
-    document.querySelector('#tbl-p tbody').innerHTML = msgErr;
-    document.querySelector('#tbl-v tbody').innerHTML = msgErr;
   }
 
   if (manual) { setTimeout(hideLoader, 800); }
+} // <-- Esta llave cierra correctamente la función
 }  
 /* ── LOADER ── */
 function showLoader(msg){
