@@ -485,7 +485,7 @@ const SH_MERMA  = '1YmG5Ojk6kaHUbaVTbVpRGvpXSXYjx5Amd2CJR2Z8x3c'; // mismo sheet
 
 let RAW_VENCER=[], RAW_MERMA=[], RAW_RELEV_PDV=[], RAW_RELEV=[];
 
-function csvUrl(id,sheet){return`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}`;}
+function csvUrl(id,sheet){return`https://docs.google.com/spreadsheets/d/${id}/export?format=csv&sheet=${encodeURIComponent(sheet)}`;}
 
 async function fetchCSV(url){
   const r=await fetch(url);
@@ -872,46 +872,78 @@ function renderAll(){
 }
 
 async function loadAll(manual){
-  if(manual){ showLoader('Actualizando datos'); }
-  setStatus('loading','Actualizando desde Google Sheets...');
-  const icon=document.getElementById('ref-icon');
-  icon.style.transition='transform .5s';icon.style.transform='rotate(360deg)';
-  setTimeout(()=>{icon.style.transform='';icon.style.transition='';},500);
-
-  let ok=true;
-
-  try{
-    const data=await fetchCSV(csvUrl(SH_VENCER,'Hoja 1'));
-    RAW_VENCER=data.slice(1);
-  }catch(e){
-    ok=false;
-    document.querySelector('#tbl-p tbody').innerHTML='<tr><td colspan="8" class="err-st">Error al cargar — verificá que el Sheet sea público</td></tr>';
-    document.querySelector('#tbl-v tbody').innerHTML='<tr><td colspan="8" class="err-st">Error al cargar — verificá que el Sheet sea público</td></tr>';
-    document.querySelector('#tbl-a tbody').innerHTML='<tr><td colspan="7" class="err-st">Error al cargar averiados</td></tr>';
-  }
-
-  try{
-    const data=await fetchCSV(csvUrl(SH_VENCER,'RESPUESTAS'));
-    RAW_MERMA=data.slice(1).filter(r=>r.some(c=>c&&c.trim()));
-  }catch(e){ RAW_MERMA=[]; }
-
-  try{
-    const data=await fetchCSV(csvUrl(SH_VENCER,'Hoja 2'));
-    RAW_RELEV_PDV=data.slice(1).filter(r=>r[0]&&r[0].trim());
-  }catch(e){ console.warn('Hoja 2:', e); }
-
-  try{
-    const data=await fetchCSV(csvUrl(SH_VENCER,'Hoja 3'));
-    RAW_RELEV=data.slice(1).filter(r=>r[0]&&r[0].trim());
-  }catch(e){ console.warn('Hoja 3:', e); }
-
-  renderAll();
-  renderMaestros();
-  setStatus(ok?'ok':'err',ok?'Conectado — datos en tiempo real':'Error de conexión — verificá permisos');
-  updateTime();
-  if(manual){ setTimeout(hideLoader, 800); }
+ function csvUrl(id, sheet) {
+  return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&sheet=${encodeURIComponent(sheet)}`;
 }
 
+// 2. Función de carga mejorada con manejo de errores individuales
+async function loadAll(manual) {
+  if (manual) { showLoader('Actualizando datos'); }
+  setStatus('loading', 'Conectando con Google Sheets...');
+  
+  const icon = document.getElementById('ref-icon');
+  if (icon) {
+    icon.style.transition = 'transform .5s';
+    icon.style.transform = 'rotate(360deg)';
+    setTimeout(() => { icon.style.transform = ''; }, 500);
+  }
+
+  let ok = true;
+
+  try {
+    // CARGA HOJA 1 (Vencimientos Principales)
+    const res1 = await fetch(csvUrl(SH_VENCER, 'Hoja 1'));
+    if (!res1.ok) throw new Error('Error en Hoja 1');
+    const text1 = await res1.text();
+    RAW_VENCER = parseCSV(text1).slice(1);
+
+    // CARGA HOJA 2 (Ruteo / Asignaciones)
+    try {
+      const res2 = await fetch(csvUrl(SH_VENCER, 'Hoja 2'));
+      if (res2.ok) {
+        const text2 = await res2.text();
+        RAW_RELEV_PDV = parseCSV(text2).slice(1).filter(r => r[0] && r[0].trim());
+      }
+    } catch (e) { console.warn("Error Hoja 2:", e); }
+
+    // CARGA HOJA 3 (Lista de Relevadores)
+    try {
+      const res3 = await fetch(csvUrl(SH_VENCER, 'Hoja 3'));
+      if (res3.ok) {
+        const text3 = await res3.text();
+        RAW_RELEV = parseCSV(text3).slice(1).filter(r => r[0] && r[0].trim());
+      }
+    } catch (e) { console.warn("Error Hoja 3:", e); }
+
+    // CARGA RESPUESTAS (Opcional)
+    try {
+      const resM = await fetch(csvUrl(SH_VENCER, 'RESPUESTAS'));
+      if (resM.ok) {
+        const textM = await resM.text();
+        RAW_MERMA = parseCSV(textM).slice(1).filter(r => r.some(c => c && c.trim()));
+      }
+    } catch (e) { RAW_MERMA = []; }
+
+    // RENDERIZAR TODO
+    renderAll();
+    renderMaestros();
+    
+    setStatus('ok', 'Conectado — Datos actualizados');
+    updateTime();
+
+  } catch (e) {
+    ok = false;
+    console.error("Error de conexión:", e);
+    setStatus('err', 'Error: Verifica que el Sheet sea PÚBLICO');
+    
+    const msgErr = '<tr><td colspan="8" class="err-st">Error de conexión. Asegúrate de que el Sheet esté compartido como "Cualquier persona con el enlace".</td></tr>';
+    document.querySelector('#tbl-p tbody').innerHTML = msgErr;
+    document.querySelector('#tbl-v tbody').innerHTML = msgErr;
+  }
+
+  if (manual) { setTimeout(hideLoader, 800); }
+}
+  
 /* ── LOADER ── */
 function showLoader(msg){
   const el=document.getElementById('loader');
